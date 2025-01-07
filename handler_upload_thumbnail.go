@@ -1,10 +1,11 @@
 package main
 
 import (
-	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
@@ -53,13 +54,8 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	}
 	defer file.Close()
 
-	// Get file content type and bytes
+	// Get file content type
 	mediaType := header.Header.Get("Content-Type")
-	data, err := io.ReadAll(file)
-	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Couldn't read file", err)
-		return
-	}
 
 	// Get the video metadata from the database
 	video, err := cfg.db.GetVideo(videoID)
@@ -74,11 +70,27 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Encode the thumbnail data to base64
-	thumbBase64 := base64.StdEncoding.EncodeToString(data)
+	// Create thumbnail file name and path
+	thumbExt := getThumbnailFileExtension(mediaType)
+	thumbFileName := fmt.Sprintf("%s.%s", videoID, thumbExt)
+	thumbFilePath := filepath.Join(cfg.assetsRoot, thumbFileName)
+
+	// Save the thumbnail to the file system
+	serverFile, err := os.Create(thumbFilePath)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't create file on the server", err)
+		return
+	}
+	defer serverFile.Close()
+
+	_, err = io.Copy(serverFile, file)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't save file to the server", err)
+		return
+	}
 
 	// Update the video in the database
-	thumbUrl := fmt.Sprintf("data:%s;base64,%s", mediaType, thumbBase64)
+	thumbUrl := fmt.Sprintf("http://localhost:%s/assets/%s", cfg.port, thumbFileName)
 	video.ThumbnailURL = &thumbUrl
 	video.UpdatedAt = time.Now()
 	err = cfg.db.UpdateVideo(video)
@@ -89,4 +101,15 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 
 	// Respond with the updated video
 	respondWithJSON(w, http.StatusOK, video)
+}
+
+func getThumbnailFileExtension(mediaType string) string {
+	switch mediaType {
+	case "image/jpeg":
+		return "jpg"
+	case "image/png":
+		return "png"
+	default:
+		return "jpg"
+	}
 }
