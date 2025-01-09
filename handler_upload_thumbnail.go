@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"mime"
@@ -84,13 +82,7 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Create a random file name
-	randomBytes := make([]byte, 32)
-	_, err = rand.Read(randomBytes)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't generate random bytes", err)
-		return
-	}
-	randomFileName := base64.RawURLEncoding.EncodeToString(randomBytes)
+	randomFileName := createRandomFileName()
 
 	// Create thumbnail file name and path
 	thumbExt := getThumbnailFileExtension(mediaType)
@@ -123,15 +115,4 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 
 	// Respond with the updated video
 	respondWithJSON(w, http.StatusOK, video)
-}
-
-func getThumbnailFileExtension(mediaType string) string {
-	switch mediaType {
-	case "image/jpeg":
-		return "jpg"
-	case "image/png":
-		return "png"
-	default:
-		return "jpg"
-	}
 }
