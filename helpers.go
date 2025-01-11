@@ -10,7 +10,7 @@ import (
 )
 
 func createRandomFileName() string {
-	b := make([]byte, 32)
+	b := make([]byte, 16)
 	_, err := rand.Read(b)
 	if err != nil {
 		return ""
