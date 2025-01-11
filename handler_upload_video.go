@@ -98,8 +98,26 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Get the aspect ratio of the video
+	aspectRatio, err := getVideoAspectRatio(tmpFile.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't get video aspect ratio", err)
+		return
+	}
+
+	// Set key prefix based on aspect ratio
+	var keyPrefix string
+	switch aspectRatio {
+	case "16:9":
+		keyPrefix = "landscape/"
+	case "9:16":
+		keyPrefix = "portrait/"
+	default:
+		keyPrefix = "other/"
+	}
+
 	// Upload the video to S3
-	key := createRandomFileName() + ".mp4"
+	key := keyPrefix + createRandomFileName() + ".mp4"
 	input := &s3.PutObjectInput{
 		Bucket:      &cfg.s3Bucket,
 		Key:         &key,
