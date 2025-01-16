@@ -131,7 +131,6 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 	}
 	defer os.Remove(processedFilePath)
 	defer processedFile.Close()
-
 	// Upload the video to S3
 	key := keyPrefix + createRandomFileName() + ".mp4"
 	input := &s3.PutObjectInput{
@@ -147,12 +146,19 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Update the video in the database
-	videoUrl := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", cfg.s3Bucket, cfg.s3Region, key)
+	videoUrl := fmt.Sprintf("%s,%s", cfg.s3Bucket, key)
 	video.VideoURL = &videoUrl
 	video.UpdatedAt = time.Now()
 	err = cfg.db.UpdateVideo(video)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't update video in database", err)
+		return
+	}
+
+	// Update the video to the presigned URL
+	video, err = cfg.dbVideoToSignedVideo(video)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't update video to signed URL", err)
 		return
 	}
 
